@@ -51,6 +51,7 @@ st.markdown("""
         border-radius: 12px;
         border-left: 5px solid #667eea;
         margin: 2rem 0;
+        color: black;
     }
     .nav-button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -273,15 +274,6 @@ with col2:
         <p style="font-size: 1.1rem;">Model Training & Web Application</p>
     </div>
     """, unsafe_allow_html=True)
-
-# Disclaimer
-st.markdown("---")
-st.warning("""
-⚠️ **Important Disclaimer**: This is an educational and research project developed for academic purposes. 
-The predictions provided by this model should **NOT** be used for gambling or betting purposes. 
-Football matches are influenced by many unpredictable factors (injuries, weather, referee decisions, etc.) 
-that are not captured in our model. Use this application for learning and exploration only.
-""")
 
 # Footer
 st.markdown("---")
