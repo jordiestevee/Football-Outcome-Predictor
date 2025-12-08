@@ -144,59 +144,58 @@ def get_team_elo(team_name, elo_dict):
     if team_name in elo_dict:
         return int(elo_dict[team_name])
     
-    # Variations
-    variations = [
-        team_name.replace(' ', ''),  # Remove spaces
-        team_name.replace('Manchester ', 'Man '),
-        team_name.replace('Man ', 'Manchester '),
-        team_name.replace('Athletic ', 'Ath '),
-        team_name.replace('Atletico ', 'Ath '),
-        team_name.replace('United', 'Utd'),
-        team_name.replace(' FC', ''),
-        team_name.replace('FC ', ''),
-        team_name.replace('Real ', ''),
-        team_name.replace('Borussia ', ''),
-        team_name.replace('Bayer ', ''),
-        team_name.replace('Eintracht ', 'Ein '),
-        team_name.replace('Inter Milan', 'Inter'),
-        team_name.replace('AC Milan', 'Milan'),
-        team_name.replace('PSG', 'Paris SG'),
-        team_name.replace('PSV', 'PSV Eindhoven'),
-        team_name.replace('Standard Liege', 'Standard'),
-        team_name.replace('KV Mechelen', 'Mechelen'),
-        team_name.replace('Union SG', 'St. Gilloise'),
-        team_name.replace('Sporting CP', 'Sp Lisbon'),
-        team_name.replace('Braga', 'Sp Braga'),
-        team_name.replace('Vitoria Guimaraes', 'Guimaraes'),
-    ]
-    
-    for variant in variations:
-        if variant in elo_dict:
-            return int(elo_dict[variant])
-    
     return 1500  # Default fallback
 
 elo_ratings = load_elo_ratings()
 
-# Team database (sample - replace with actual team list)
-TEAMS = {
-    'Premier League': ['Manchester City', 'Arsenal', 'Liverpool', 'Manchester United', 'Chelsea', 
-                      'Tottenham', 'Newcastle', 'Brighton', 'Aston Villa', 'West Ham'],
-    'La Liga': ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Real Sociedad', 'Real Betis', 
-                'Villarreal', 'Athletic Bilbao', 'Valencia', 'Sevilla', 'Osasuna'],
-    'Serie A': ['Inter Milan', 'AC Milan', 'Juventus', 'Napoli', 'Roma', 
-                'Lazio', 'Atalanta', 'Fiorentina', 'Bologna', 'Torino'],
-    'Bundesliga': ['Bayern Munich', 'Borussia Dortmund', 'RB Leipzig', 'Bayer Leverkusen', 'Union Berlin',
-                   'Freiburg', 'Eintracht Frankfurt', 'Wolfsburg', 'Hoffenheim', 'Stuttgart'],
-    'Ligue 1': ['PSG', 'Marseille', 'Monaco', 'Lyon', 'Lille', 
-                'Lens', 'Nice', 'Rennes', 'Nantes', 'Montpellier'],
-    'Eredivisie': ['Ajax', 'PSV', 'Feyenoord', 'AZ Alkmaar', 'FC Twente',
-                   'FC Utrecht', 'Vitesse', 'Go Ahead Eagles', 'Heerenveen', 'Sparta Rotterdam'],
-    'Pro League': ['Club Brugge', 'Antwerp', 'Union SG', 'Genk', 'Anderlecht',
-                   'Gent', 'Standard Liege', 'Cercle Brugge', 'Sint-Truiden', 'KV Mechelen'],
-    'Primeira Liga': ['Benfica', 'Porto', 'Sporting CP', 'Braga', 'Vitoria Guimaraes',
-                      'Famalicao', 'Gil Vicente', 'Casa Pia', 'Estoril', 'Arouca']
-}
+# Load actual teams from dataset
+@st.cache_data
+def load_teams_from_dataset():
+    """Load actual teams from Matches_Clean.csv"""
+    try:
+        df = pd.read_csv('../data/Matches_Clean.csv')
+        
+        # Get all unique teams
+        all_teams = set(df['HomeTeam'].unique()) | set(df['AwayTeam'].unique())
+        all_teams = sorted(list(all_teams))
+        
+        # Map divisions to league names
+        division_map = {
+            'E0': 'Premier League',
+            'SP1': 'La Liga',
+            'I1': 'Serie A',
+            'D1': 'Bundesliga',
+            'F1': 'Ligue 1',
+            'N1': 'Eredivisie',
+            'B1': 'Pro League',
+            'P1': 'Primeira Liga'
+        }
+        
+        # Group teams by league
+        teams_by_league = {league: [] for league in division_map.values()}
+        
+        for team in all_teams:
+            # Find which league(s) this team plays in
+            home_divisions = df[df['HomeTeam'] == team]['Division'].unique()
+            away_divisions = df[df['AwayTeam'] == team]['Division'].unique()
+            divisions = set(home_divisions) | set(away_divisions)
+            
+            for div in divisions:
+                if div in division_map:
+                    league = division_map[div]
+                    if team not in teams_by_league[league]:
+                        teams_by_league[league].append(team)
+        
+        # Sort teams within each league
+        for league in teams_by_league:
+            teams_by_league[league] = sorted(teams_by_league[league])
+        
+        return teams_by_league
+    except Exception as e:
+        st.sidebar.warning(f"⚠️ Could not load teams from dataset: {e}")
+        return {}
+
+TEAMS = load_teams_from_dataset()
 
 # Sidebar - Model Information
 st.sidebar.markdown("""
@@ -224,7 +223,6 @@ st.sidebar.info("""
 **Comparison:**
 - Bet365 Accuracy: 54.24%
 - Bet365 Log Loss: 0.9573
-- Our model is competitive!
 """)
 
 st.sidebar.markdown("---")
