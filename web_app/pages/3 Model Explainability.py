@@ -106,7 +106,7 @@ if model is None:
     st.stop()
 
 # Compute SHAP values on a sample (full test set would be too slow)
-X_sample = X_test.sample(n=min(500, len(X_test)), random_state=42)
+X_sample = X_test.sample(n=min(5000, len(X_test)), random_state=42)
 explainer, shap_values = compute_shap_values(model, X_sample)
 
 # Sidebar

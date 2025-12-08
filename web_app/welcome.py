@@ -4,6 +4,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import pickle
+import os
 
 # Page configuration
 st.set_page_config(
@@ -12,6 +14,37 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Load model and data for real predictions
+@st.cache_data
+def load_model_and_data():
+    """Load trained model and test data"""
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'model.pkl')
+        with open(model_path, 'rb') as f:
+            artifacts = pickle.load(f)
+        model = artifacts['model']
+        features = artifacts['features']
+    except Exception as e:
+        return None, None, None, None
+    
+    try:
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'Matches_Clean.csv')
+        df_clean = pd.read_csv(data_path)
+        df_clean['MatchDate'] = pd.to_datetime(df_clean['MatchDate'])
+        
+        # Time-based split
+        df_sorted = df_clean.sort_values('MatchDate')
+        split_idx = int(len(df_sorted) * 0.8)
+        test_df = df_sorted.iloc[split_idx:].reset_index(drop=True)
+        
+        X_test = test_df[features]
+        
+        return model, X_test, test_df, features
+    except Exception as e:
+        return None, None, None, None
+
+model, X_test, test_df, features = load_model_and_data()
 
 # Custom CSS
 st.markdown("""
@@ -150,27 +183,62 @@ with col4:
 # Sample Predictions Table
 st.markdown("### 🔮 Sample Model Predictions")
 
-sample_predictions = pd.DataFrame({
-    'Match': [
-        'Manchester City vs Liverpool',
-        'Barcelona vs Real Madrid',
-        'Bayern Munich vs Borussia Dortmund',
-        'PSG vs Marseille',
-        'Inter Milan vs Juventus'
-    ],
-    'P(Home Win)': ['58.3%', '51.2%', '62.7%', '64.1%', '49.8%'],
-    'P(Draw)': ['23.4%', '26.8%', '21.3%', '20.5%', '28.2%'],
-    'P(Away Win)': ['18.3%', '22.0%', '16.0%', '15.4%', '22.0%'],
-    'Prediction': ['Home Win', 'Home Win', 'Home Win', 'Home Win', 'Draw'],
-    'Confidence': ['High (58%)', 'Medium (51%)', 'High (63%)', 'High (64%)', 'Low (50%)']
-})
-
-st.dataframe(sample_predictions, hide_index=True, use_container_width=True)
-
-st.markdown("""
-*Sample predictions demonstrate probability-based outputs with confidence levels. 
-Each prediction includes the likelihood of all three outcomes.*
-""")
+if model is not None and X_test is not None and test_df is not None:
+    # Get predictions for a random sample of 5 matches
+    sample_indices = np.random.choice(len(X_test), min(5, len(X_test)), replace=False)
+    
+    matches_data = []
+    for idx in sample_indices:
+        # Get match info
+        match_row = test_df.iloc[idx]
+        home_team = match_row['HomeTeam']
+        away_team = match_row['AwayTeam']
+        actual_result = match_row['FTResult']
+        
+        # Get prediction
+        features_array = X_test.iloc[idx].values.reshape(1, -1)
+        proba = model.predict_proba(features_array)[0]
+        
+        home_prob, draw_prob, away_prob = proba
+        prediction_idx = np.argmax(proba)
+        prediction_labels = ['Home Win', 'Draw', 'Away Win']
+        prediction = prediction_labels[prediction_idx]
+        confidence = max(proba)
+        
+        # Determine confidence level
+        if confidence >= 0.60:
+            conf_level = f"High ({confidence*100:.0f}%)"
+        elif confidence >= 0.50:
+            conf_level = f"Medium ({confidence*100:.0f}%)"
+        else:
+            conf_level = f"Low ({confidence*100:.0f}%)"
+        
+        # Determine if prediction was correct
+        pred_result = prediction_labels[prediction_idx]
+        result_map = {'Home Win': 'H', 'Draw': 'D', 'Away Win': 'A'}
+        was_correct = result_map.get(pred_result) == actual_result
+        
+        matches_data.append({
+            'Match': f"{home_team} vs {away_team}",
+            'P(Home Win)': f"{home_prob*100:.1f}%",
+            'P(Draw)': f"{draw_prob*100:.1f}%",
+            'P(Away Win)': f"{away_prob*100:.1f}%",
+            'Prediction': prediction,
+            'Confidence': conf_level,
+            'Actual': actual_result,
+        })
+    
+    sample_predictions = pd.DataFrame(matches_data)
+    st.dataframe(sample_predictions, hide_index=True, use_container_width=True)
+    
+    st.markdown("""
+    *Sample predictions from the test set showing real model outputs.
+    """)
+else:
+    st.warning("⚠️ Could not load model or data for real predictions")
+    st.markdown("""
+    Sample predictions would appear here once the model is loaded.
+    """)
 
 # Navigation Section
 st.markdown("---")
