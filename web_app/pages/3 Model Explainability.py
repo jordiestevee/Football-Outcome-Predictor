@@ -795,15 +795,6 @@ if model is not None:
         st.metric("Calibration Bias", f"{abs(overconf):.4f}", 
                   delta=bias_label,
                   help="Whether model is systematically over or underconfident")
-        
-        st.markdown("---")
-        
-        if mae_calibration < 0.05:
-            st.success("✅ **Excellent calibration!** Predicted probabilities closely match actual outcomes.")
-        elif mae_calibration < 0.10:
-            st.info("✓ **Good calibration.** Predictions are reasonably well-calibrated.")
-        else:
-            st.warning("⚠️ **Moderate calibration.** Some divergence between predicted and actual probabilities.")
     
     st.markdown("""
     **How to interpret this curve:**
