@@ -141,14 +141,30 @@ def get_team_elo(team_name, elo_dict):
     if team_name in elo_dict:
         return int(elo_dict[team_name])
     
-    # Try common variations
+    # Variations
     variations = [
         team_name.replace(' ', ''),  # Remove spaces
         team_name.replace('Manchester ', 'Man '),
         team_name.replace('Man ', 'Manchester '),
+        team_name.replace('Athletic ', 'Ath '),
+        team_name.replace('Atletico ', 'Ath '),
         team_name.replace('United', 'Utd'),
         team_name.replace(' FC', ''),
         team_name.replace('FC ', ''),
+        team_name.replace('Real ', ''),
+        team_name.replace('Borussia ', ''),
+        team_name.replace('Bayer ', ''),
+        team_name.replace('Eintracht ', 'Ein '),
+        team_name.replace('Inter Milan', 'Inter'),
+        team_name.replace('AC Milan', 'Milan'),
+        team_name.replace('PSG', 'Paris SG'),
+        team_name.replace('PSV', 'PSV Eindhoven'),
+        team_name.replace('Standard Liege', 'Standard'),
+        team_name.replace('KV Mechelen', 'Mechelen'),
+        team_name.replace('Union SG', 'St. Gilloise'),
+        team_name.replace('Sporting CP', 'Sp Lisbon'),
+        team_name.replace('Braga', 'Sp Braga'),
+        team_name.replace('Vitoria Guimaraes', 'Guimaraes'),
     ]
     
     for variant in variations:
