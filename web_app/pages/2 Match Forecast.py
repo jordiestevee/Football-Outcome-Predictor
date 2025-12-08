@@ -106,14 +106,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Load model (placeholder - replace with actual model loading)
+# Load model
 @st.cache_resource
 def load_model():
-    """Load trained model - replace with actual pickle loading"""
+    """Load trained XGBoost model from pickle file"""
     try:
-        # In production: with open('../model.pkl', 'rb') as f: return pickle.load(f)
-        return None  # Placeholder
-    except:
+        model_path = os.path.join(os.path.dirname(__file__), '..', '..', 'model.pkl')
+        with open(model_path, 'rb') as f:
+            artifacts = pickle.load(f)
+        return artifacts['model']
+    except Exception as e:
+        st.sidebar.error(f"❌ Error loading model: {e}")
         return None
 
 model_data = load_model()
@@ -376,26 +379,17 @@ if predict_button:
     # Create feature array
     features = np.array([[elo_diff, total_elo, form_diff, gf_diff, ga_diff, h2h_value]])
     
-    # Mock prediction (replace with actual model.predict_proba(features))
-    # Simulate prediction based on features
-    base_home_prob = 0.47
-    base_draw_prob = 0.26
-    base_away_prob = 0.27
-    
-    # Adjust probabilities based on features
-    elo_factor = np.tanh(elo_diff / 200) * 0.15
-    form_factor = np.tanh(form_diff / 5) * 0.10
-    h2h_factor = np.tanh(h2h_value / 5) * 0.05
-    
-    home_prob = base_home_prob + elo_factor + form_factor + h2h_factor
-    away_prob = base_away_prob - elo_factor - form_factor - h2h_factor
-    draw_prob = 1 - home_prob - away_prob
-    
-    # Normalize
-    total = home_prob + draw_prob + away_prob
-    home_prob /= total
-    draw_prob /= total
-    away_prob /= total
+    # Use actual model prediction
+    if model_data is not None:
+        try:
+            y_proba = model_data.predict_proba(features)
+            home_prob, draw_prob, away_prob = y_proba[0]
+        except Exception as e:
+            st.error(f"❌ Error making prediction: {e}")
+            st.stop()
+    else:
+        st.error("❌ Model not loaded. Please ensure model.pkl is available.")
+        st.stop()
     
     # Get prediction
     probs = np.array([home_prob, draw_prob, away_prob])
@@ -414,7 +408,6 @@ if predict_button:
         <p style="font-size: 1rem; opacity: 0.8; margin-top: 0.5rem;">🏠 Home: {home_team}</p>
     </div>
     """, unsafe_allow_html=True)
-    
     # Animated probability cards
     st.markdown("### 📊 Predicted Probabilities")
     
