@@ -279,8 +279,6 @@ with col2:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 2rem;">
-    <p><strong>Football Outcome Predictor</strong> | Built with ❤️ using Streamlit, XGBoost & SHAP</p>
-    <p>Data Period: 2010-2025 | 8 Major European Leagues | 40,370+ Matches</p>
-    <p>Model Last Updated: December 2024</p>
+    <p><strong>Football Outcome Predictor</strong> | Built using Streamlit</p>
 </div>
 """, unsafe_allow_html=True)
