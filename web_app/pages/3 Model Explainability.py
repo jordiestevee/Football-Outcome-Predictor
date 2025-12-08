@@ -296,11 +296,13 @@ col1, col2, col3 = st.columns(3)
 with col1:
     # Get unique teams
     home_teams = sorted(test_df['HomeTeam'].unique())
-    selected_home = st.selectbox("Select Home Team", home_teams, key="local_home")
+    default_home_idx = home_teams.index('Man City') if 'Man City' in home_teams else 0
+    selected_home = st.selectbox("Select Home Team", home_teams, index=default_home_idx, key="local_home")
 
 with col2:
     away_teams = sorted(test_df['AwayTeam'].unique())
-    selected_away = st.selectbox("Select Away Team", away_teams, key="local_away")
+    default_away_idx = away_teams.index('Arsenal') if 'Arsenal' in away_teams else 0
+    selected_away = st.selectbox("Select Away Team", away_teams, index=default_away_idx, key="local_away")
 
 with col3:
     # Filter matches
@@ -349,30 +351,69 @@ if len(matches) > 0:
     prediction_class = np.argmax(prediction_proba)
     predicted_outcome = reverse_label_map[prediction_class]
     
-    st.markdown("### 🤖 Model Prediction")
+    # Get Bet365 odds for this match
+    bet365_home = selected_match['OddHome']
+    bet365_draw = selected_match['OddDraw']
+    bet365_away = selected_match['OddAway']
+    
+    # Convert odds to implied probabilities
+    p_home_bet = 1 / bet365_home
+    p_draw_bet = 1 / bet365_draw
+    p_away_bet = 1 / bet365_away
+    norm_bet = p_home_bet + p_draw_bet + p_away_bet
+    bet365_proba = np.array([p_home_bet/norm_bet, p_draw_bet/norm_bet, p_away_bet/norm_bet])
+    
+    st.markdown("### 🤖 Model Prediction vs 💰 Bet365 Odds")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
+        st.markdown("**🏠 Home Win**")
         st.metric(
-            "Home Win", 
+            "Our Model", 
             f"{prediction_proba[0]*100:.1f}%",
             delta="✓ Predicted" if prediction_class == 0 else ""
         )
+        st.metric(
+            "Bet365", 
+            f"{bet365_proba[0]*100:.1f}%",
+            delta=f"({bet365_home:.2f})"
+        )
+        diff = prediction_proba[0] - bet365_proba[0]
+        if abs(diff) > 0.02:
+            st.caption(f"{'We are +' if diff > 0 else 'They are +'}{abs(diff)*100:.1f}% more optimistic")
     
     with col2:
+        st.markdown("**🤝 Draw**")
         st.metric(
-            "Draw", 
+            "Our Model", 
             f"{prediction_proba[1]*100:.1f}%",
             delta="✓ Predicted" if prediction_class == 1 else ""
         )
+        st.metric(
+            "Bet365", 
+            f"{bet365_proba[1]*100:.1f}%",
+            delta=f"({bet365_draw:.2f})"
+        )
+        diff = prediction_proba[1] - bet365_proba[1]
+        if abs(diff) > 0.02:
+            st.caption(f"{'We are +' if diff > 0 else 'They are +'}{abs(diff)*100:.1f}% more optimistic")
     
     with col3:
+        st.markdown("**✈️ Away Win**")
         st.metric(
-            "Away Win", 
+            "Our Model", 
             f"{prediction_proba[2]*100:.1f}%",
             delta="✓ Predicted" if prediction_class == 2 else ""
         )
+        st.metric(
+            "Bet365", 
+            f"{bet365_proba[2]*100:.1f}%",
+            delta=f"({bet365_away:.2f})"
+        )
+        diff = prediction_proba[2] - bet365_proba[2]
+        if abs(diff) > 0.02:
+            st.caption(f"{'We are +' if diff > 0 else 'They are +'}{abs(diff)*100:.1f}% more optimistic")
     
     # Compute SHAP for this specific prediction
     explainer_single = shap.TreeExplainer(model)
