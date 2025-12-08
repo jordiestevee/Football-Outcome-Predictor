@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import pickle
+import shap
 import sys
 import os
 
@@ -374,14 +375,15 @@ if predict_button:
         st.error("❌ **Error:** Home and Away teams cannot be the same!")
         st.stop()
     
-    # Create feature array
-    features = np.array([[elo_diff, total_elo, form_diff, gf_diff, ga_diff, h2h_value]])
+    # Create feature array exactly as in Model Explainability
+    feature_values = np.array([elo_diff, total_elo, form_diff, gf_diff, ga_diff, h2h_value])
     
-    # Use actual model prediction
+    # Make prediction exactly as in Model Explainability page
     if model_data is not None:
         try:
-            y_proba = model_data.predict_proba(features)
-            home_prob, draw_prob, away_prob = y_proba[0]
+            prediction_proba = model_data.predict_proba(feature_values.reshape(1, -1))[0]
+            prediction_class = np.argmax(prediction_proba)
+            home_prob, draw_prob, away_prob = prediction_proba
         except Exception as e:
             st.error(f"❌ Error making prediction: {e}")
             st.stop()
@@ -391,7 +393,7 @@ if predict_button:
     
     # Get prediction
     probs = np.array([home_prob, draw_prob, away_prob])
-    prediction_idx = np.argmax(probs)
+    prediction_idx = prediction_class
     prediction_labels = ['Home Win', 'Draw', 'Away Win']
     prediction = prediction_labels[prediction_idx]
     confidence = probs[prediction_idx]
@@ -547,56 +549,68 @@ if predict_button:
     
     st.markdown(interpretation, unsafe_allow_html=True)
     
-    # Feature contribution (simplified SHAP-like visualization)
+    # Feature contribution using SHAP
     st.markdown("---")
     st.markdown("## 🔍 Feature Contributions")
     
-    # Calculate feature impacts (simplified)
-    feature_names = ['Elo Difference', 'Total Elo', 'Form Difference', 'GF Difference', 'GA Difference', 'H2H']
-    feature_values = [elo_diff, total_elo, form_diff, gf_diff, ga_diff, h2h_value]
-    
-    # Simplified impact calculation
-    impacts = []
-    impacts.append(abs(elo_diff) / 200 * 0.30)  # Elo most important
-    impacts.append(abs(total_elo - 3000) / 500 * 0.15)
-    impacts.append(abs(form_diff) / 10 * 0.20)
-    impacts.append(abs(gf_diff) / 10 * 0.15)
-    impacts.append(abs(ga_diff) / 10 * 0.12)
-    impacts.append(abs(h2h_value) / 10 * 0.08)
-    
-    # Normalize
-    total_impact = sum(impacts)
-    if total_impact > 0:
-        impacts = [i / total_impact for i in impacts]
-    
-    df_impact = pd.DataFrame({
-        'Feature': feature_names,
-        'Value': feature_values,
-        'Impact': impacts
-    }).sort_values('Impact', ascending=True)
-    
-    fig = go.Figure()
-    
-    colors = ['#2ecc71' if v > 0 else '#e74c3c' if v < 0 else '#95a5a6' for v in df_impact['Value']]
-    
-    fig.add_trace(go.Bar(
-        y=df_impact['Feature'],
-        x=df_impact['Impact'],
-        orientation='h',
-        marker_color=colors,
-        text=[f"{imp*100:.1f}%" for imp in df_impact['Impact']],
-        textposition='auto'
-    ))
-    
-    fig.update_layout(
-        title="Feature Importance for This Prediction",
-        xaxis_title="Relative Impact",
-        yaxis_title="",
-        height=400,
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    # Compute SHAP values for this specific prediction
+    try:
+        explainer_single = shap.TreeExplainer(model_data)
+        shap_single = explainer_single(feature_values.reshape(1, -1))
+        
+        # Get SHAP contributions for the predicted class
+        shap_contributions = shap_single.values[0][:, prediction_class]
+        
+        # Feature names
+        feature_names = ['EloDifference', 'TotalElo', 'Form5Difference', 'GF5Difference', 'GA5Difference', 'Last3H2H']
+        feature_values_display = [elo_diff, total_elo, form_diff, gf_diff, ga_diff, h2h_value]
+        
+        # Create dataframe
+        df_impact = pd.DataFrame({
+            'Feature': feature_names,
+            'Value': feature_values_display,
+            'SHAP': shap_contributions
+        }).sort_values('SHAP', key=abs, ascending=True)
+        
+        # Visualize
+        fig = go.Figure()
+        
+        colors = ['#2ecc71' if val > 0 else '#e74c3c' for val in df_impact['SHAP']]
+        
+        fig.add_trace(go.Bar(
+            y=df_impact['Feature'],
+            x=df_impact['SHAP'],
+            orientation='h',
+            marker_color=colors,
+            text=[f"{val:+.3f}" for val in df_impact['SHAP']],
+            textposition='auto',
+            hovertemplate='<b>%{y}</b><br>SHAP Value: %{x:.4f}<br><extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title=f"Feature Contributions to {prediction} Probability",
+            xaxis_title="SHAP Value (Impact on Prediction)",
+            yaxis_title="",
+            height=400,
+            showlegend=False
+        )
+        
+        fig.add_vline(x=0, line_dash="dash", line_color="gray")
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("""<div class="insight-box">
+        <p><strong>How to read this chart:</strong></p>
+        <ul>
+            <li><strong>Green bars</strong> = Features pushing <strong>towards</strong> {}</li>
+            <li><strong>Red bars</strong> = Features pushing <strong>against</strong> {}</li>
+            <li><strong>Longer bars</strong> = Stronger influence on the prediction</li>
+        </ul>
+        </div>""".format(prediction, prediction), unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.warning(f"⚠️ Could not compute SHAP values: {e}")
+        st.info("Showing simplified feature importance instead.")
     
     col1, col2 = st.columns(2)
     
